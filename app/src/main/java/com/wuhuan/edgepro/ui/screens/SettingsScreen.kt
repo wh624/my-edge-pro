@@ -22,8 +22,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +43,7 @@ import com.wuhuan.edgepro.core.ShellCommands
 import com.wuhuan.edgepro.root.RootShell
 import com.wuhuan.edgepro.ui.MainViewModel
 import com.wuhuan.edgepro.ui.components.BackTopBar
+import com.wuhuan.edgepro.ui.components.IntField
 import kotlinx.coroutines.launch
 
 @Composable
@@ -47,7 +51,11 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
     val app = context.applicationContext as App
     val root by vm.root.collectAsStateWithLifecycle()
+    val daemon by vm.daemon.collectAsStateWithLifecycle()
+    var daemonEnabled by remember { mutableStateOf(app.settings.daemonEnabled) }
+    var catchUp by remember { mutableIntStateOf(app.settings.catchUpMinutes) }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { if (root == true) vm.refreshDaemon() }
     var alarmClock by remember { mutableStateOf(app.settings.alarmClockMode) }
     var notify by remember { mutableStateOf(app.settings.notifyOnFinish) }
     var dialogText by remember { mutableStateOf<String?>(null) }
@@ -63,7 +71,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
             )
             Item(
                 title = "一键保活优化",
-                subtitle = "加入电池优化白名单、允许后台运行、授予精确闹钟与通知权限",
+                subtitle = "授予 MIUI 自启动、加入电池优化白名单、允许后台运行、精确闹钟与通知权限",
                 onClick = {
                     scope.launch {
                         val r = RootShell.exec(ShellCommands.optimizeSelf(context.packageName))
@@ -72,6 +80,46 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     }
                 },
             )
+
+            Group("后台常驻（App 不打开也能执行）")
+            val d = daemon
+            SwitchItem(
+                title = "Root 守护进程",
+                subtitle = when {
+                    root != true -> "需要 Root"
+                    d == null -> "检测中…"
+                    else -> buildString {
+                        append(if (d.running) "运行中 (pid ${d.pid})" else "未运行")
+                        append(" · 开机自启")
+                        append(if (d.bootHookInstalled) "已安装" else "未安装")
+                        append("\n以 root 身份常驻，App 被划掉/强停/重启后自动拉起，保证定时任务照常执行")
+                    }
+                },
+                checked = daemonEnabled,
+            ) {
+                daemonEnabled = it
+                vm.setDaemonEnabled(it)
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("错过补执行窗口（分钟）", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "App 被杀期间错过的触发，在这个时间内被拉起会立即补执行；0 为不补执行",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IntField("分钟", catchUp, {
+                    catchUp = it
+                    app.settings.catchUpMinutes = it
+                }, Modifier.width(96.dp), 0..1440)
+            }
+            Item("运行诊断", "检查守护进程、自启动、电池白名单、已注册闹钟，可复制结果反馈问题") {
+                scope.launch { dialogText = vm.diagnose().ifBlank { "无输出（请确认已授予 Root）" } }
+            }
 
             Group("调度")
             SwitchItem(

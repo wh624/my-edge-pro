@@ -37,6 +37,14 @@
 3. 排除：白名单、本应用、桌面、输入法、关键系统包；未勾选“包含系统应用”时只保留第三方包。
 4. 逐个 `am force-stop --user N` 或 `am kill --user N`。
 
+## 后台常驻（App 不打开也能执行）
+MIUI/HyperOS 默认拒绝自启动：App 被划掉（强行停止会清空闹钟）、重启后未打开（开机广播被拦）、锁屏后被省电策略杀掉时，闹钟无法拉起进程。对策：
+- **Root 守护进程** `/data/adb/edgepro/daemon.sh`：uid 0 运行，不受针对应用 uid 的杀进程影响。每 30 秒 `pidof` 检查 App 进程，不在则 `am broadcast -n <pkg>/.sched.KeepAliveReceiver -f 0x20` 拉起；`KeepAliveReceiver` 不导出，仅 root 可发。App 数据目录消失（卸载）时自行清理退出。
+- **开机自启** `/data/adb/service.d/edgepro.sh`（Magisk/KernelSU/APatch 通用），重启后无需打开 App。
+- **自启动授权**：守护进程启动时及「一键保活优化」执行 `appops set <pkg> 10008 allow`（MIUI 自启动）、`10021`（后台弹出界面）、`RUN_ANY_IN_BACKGROUND`、电池优化白名单。
+- **错过补执行**：`Scheduler` 在 SharedPreferences 记录每个任务的预期触发时间；`App.onCreate` 在重排前判定窗口内（默认 30 分钟，可设 0 关闭）错过且未执行的触发，延迟 5 秒补执行。执行服务按 `lastRunAt >= scheduledAt` 去重，避免闹钟与补执行重复。
+- **运行诊断**：设置页一键输出守护进程、自启动、白名单、待机分组、已注册闹钟状态。
+
 ## 错误处理
 - 无 Root：任务记录失败日志并提示。
 - 单步失败不中断后续步骤，整体结果为失败；每步输出写入日志详情。

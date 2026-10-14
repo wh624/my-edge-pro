@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wuhuan.edgepro.App
+import com.wuhuan.edgepro.core.DaemonStatus
 import com.wuhuan.edgepro.core.Task
 import com.wuhuan.edgepro.core.TriggerCalculator
 import com.wuhuan.edgepro.root.RootShell
@@ -40,10 +41,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _daemon = MutableStateFlow<DaemonStatus?>(null)
+    /** null 表示未知/检测中。 */
+    val daemon: StateFlow<DaemonStatus?> = _daemon.asStateFlow()
+
     fun refreshRoot() {
         _root.value = null
-        viewModelScope.launch { _root.value = RootShell.checkRoot() }
+        viewModelScope.launch {
+            val ok = RootShell.checkRoot()
+            _root.value = ok
+            if (ok) refreshDaemon(install = app.settings.daemonEnabled)
+        }
     }
+
+    fun refreshDaemon(install: Boolean = false) {
+        viewModelScope.launch {
+            _daemon.value = if (install) app.daemon.ensure() else app.daemon.status()
+        }
+    }
+
+    fun setDaemonEnabled(enabled: Boolean) {
+        app.settings.daemonEnabled = enabled
+        _daemon.value = null
+        viewModelScope.launch {
+            _daemon.value = if (enabled) app.daemon.ensure() else app.daemon.uninstall()
+        }
+    }
+
+    suspend fun diagnose(): String = app.daemon.diagnose()
 
     fun task(id: String): Task? = app.tasks.get(id)
 

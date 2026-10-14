@@ -3,12 +3,17 @@ package com.wuhuan.edgepro
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.os.Handler
+import android.os.Looper
 import com.wuhuan.edgepro.apps.AppRepository
+import com.wuhuan.edgepro.core.CatchUp
 import com.wuhuan.edgepro.data.LogStore
 import com.wuhuan.edgepro.data.Settings
 import com.wuhuan.edgepro.data.TaskStore
 import com.wuhuan.edgepro.sched.Scheduler
+import com.wuhuan.edgepro.root.DaemonManager
 import com.wuhuan.edgepro.sched.TaskExecutor
+import com.wuhuan.edgepro.sched.TaskRunnerService
 
 class App : Application() {
 
@@ -24,6 +29,8 @@ class App : Application() {
         private set
     lateinit var executor: TaskExecutor
         private set
+    lateinit var daemon: DaemonManager
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -34,8 +41,21 @@ class App : Application() {
         scheduler = Scheduler(this, settings)
         apps = AppRepository(this)
         executor = TaskExecutor(this)
+        daemon = DaemonManager(packageName)
         createChannels()
+        val missed = CatchUp.due(
+            tasks.items.value,
+            scheduler.expectedRuns(),
+            System.currentTimeMillis(),
+            settings.catchUpMinutes * 60_000L,
+        )
         scheduler.scheduleAll(tasks.items.value)
+        if (missed.isNotEmpty()) {
+            // 若本进程正是被该次闹钟拉起，闹钟广播会先入队执行，补执行这次会被去重跳过
+            Handler(Looper.getMainLooper()).postDelayed({
+                missed.forEach { (task, at) -> TaskRunnerService.startOrLog(this, task.id, at, source = "补执行") }
+            }, 5_000)
+        }
     }
 
     private fun createChannels() {

@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import com.wuhuan.edgepro.core.Task
 import com.wuhuan.edgepro.core.TriggerCalculator
@@ -15,10 +16,16 @@ class Scheduler(private val context: Context, private val settings: Settings) {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
+    /** 每个任务最近一次注册的触发时间，进程被杀后用来判断错过了哪些触发。 */
+    private val expectedPrefs = context.getSharedPreferences("expected_runs", Context.MODE_PRIVATE)
+
     fun canScheduleExact(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
 
     fun scheduleAll(tasks: List<Task>) = tasks.forEach { schedule(it) }
+
+    fun expectedRuns(): Map<String, Long> =
+        expectedPrefs.all.mapNotNull { (k, v) -> (v as? Long)?.let { k to it } }.toMap()
 
     /**
      * 为任务注册下一次闹钟。[afterMillis] 之后（不含）才会触发，
@@ -43,11 +50,13 @@ class Scheduler(private val context: Context, private val settings: Settings) {
         } catch (_: SecurityException) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, operation)
         }
+        expectedPrefs.edit { putLong(task.id, next) }
         return next
     }
 
     fun cancel(taskId: String) {
         alarmManager.cancel(alarmIntent(taskId, 0))
+        expectedPrefs.edit { remove(taskId) }
     }
 
     private fun alarmIntent(taskId: String, triggerAt: Long): PendingIntent {

@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import com.wuhuan.edgepro.App
 import com.wuhuan.edgepro.R
+import com.wuhuan.edgepro.core.CatchUp
 import com.wuhuan.edgepro.core.LogEntry
 import com.wuhuan.edgepro.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -46,10 +47,11 @@ class TaskRunnerService : Service() {
             return START_NOT_STICKY
         }
         val scheduledAt = intent.getLongExtra(EXTRA_SCHEDULED_AT, -1L).takeIf { it > 0 }
+        val source = intent.getStringExtra(EXTRA_SOURCE) ?: if (scheduledAt != null) "定时" else "手动"
         pending.incrementAndGet()
         scope.launch {
             try {
-                runTask(taskId, scheduledAt)
+                runTask(taskId, scheduledAt, source)
             } finally {
                 pending.decrementAndGet()
                 stopIfIdle()
@@ -58,9 +60,10 @@ class TaskRunnerService : Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun runTask(taskId: String, scheduledAt: Long?) = executionLock.withLock {
+    private suspend fun runTask(taskId: String, scheduledAt: Long?, source: String) = executionLock.withLock {
         app.tasks.reload()
         val task = app.tasks.get(taskId) ?: return@withLock
+        if (scheduledAt != null && CatchUp.alreadyRan(task, scheduledAt)) return@withLock
         if (scheduledAt != null) {
             // 先排好下一次，防止执行过程中进程被杀导致断档
             app.scheduler.schedule(task, afterMillis = maxOf(System.currentTimeMillis(), scheduledAt))
@@ -80,7 +83,7 @@ class TaskRunnerService : Service() {
                     taskId = task.id,
                     taskName = task.name.ifBlank { "未命名任务" },
                     success = report.success,
-                    summary = (if (scheduledAt != null) "[定时] " else "[手动] ") + report.summary,
+                    summary = "[$source] " + report.summary,
                     detail = report.detail(),
                 )
             )
@@ -144,6 +147,7 @@ class TaskRunnerService : Service() {
     companion object {
         private const val EXTRA_TASK_ID = "task_id"
         private const val EXTRA_SCHEDULED_AT = "scheduled_at"
+        private const val EXTRA_SOURCE = "source"
         private const val NOTIFICATION_ID = 1001
         private val resultIdSeq = AtomicInteger(2000)
         private val executionLock = Mutex()
@@ -153,11 +157,33 @@ class TaskRunnerService : Service() {
         val running: StateFlow<String?> = _running.asStateFlow()
 
         /** [scheduledAt] 为 null 表示手动执行，不会重排闹钟。 */
-        fun start(context: Context, taskId: String, scheduledAt: Long? = null) {
+        fun start(context: Context, taskId: String, scheduledAt: Long? = null, source: String? = null) {
             val intent = Intent(context, TaskRunnerService::class.java)
                 .putExtra(EXTRA_TASK_ID, taskId)
                 .apply { if (scheduledAt != null) putExtra(EXTRA_SCHEDULED_AT, scheduledAt) }
+                .apply { if (source != null) putExtra(EXTRA_SOURCE, source) }
             context.startForegroundService(intent)
+        }
+
+        /** 后台场景使用：系统拒绝启动前台服务时重排闹钟并写一条失败日志，而不是静默丢失。 */
+        fun startOrLog(context: Context, taskId: String, scheduledAt: Long, source: String) {
+            try {
+                start(context, taskId, scheduledAt, source)
+            } catch (e: IllegalStateException) {
+                val app = context.applicationContext as App
+                val task = app.tasks.get(taskId) ?: return
+                app.scheduler.schedule(task, afterMillis = maxOf(System.currentTimeMillis(), scheduledAt))
+                app.logs.add(
+                    LogEntry(
+                        time = System.currentTimeMillis(),
+                        taskId = task.id,
+                        taskName = task.name.ifBlank { "未命名任务" },
+                        success = false,
+                        summary = "[$source] 系统拒绝后台启动执行服务",
+                        detail = "${e.message}\n请在设置中开启「Root 守护进程」并执行「一键保活优化」。",
+                    )
+                )
+            }
         }
     }
 }

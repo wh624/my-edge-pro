@@ -116,13 +116,10 @@ object ShellCommands {
     /** 本应用的保活与权限优化。 */
     fun optimizeSelf(pkg: String): String {
         require(isValidPackage(pkg))
-        return listOf(
-            "dumpsys deviceidle whitelist +$pkg",
+        return (DaemonScripts.permissionCommands(pkg) + listOf(
             "cmd appops set $pkg SCHEDULE_EXACT_ALARM allow",
-            "cmd appops set $pkg RUN_IN_BACKGROUND allow",
-            "cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow",
             "pm grant $pkg android.permission.POST_NOTIFICATIONS",
             "am set-standby-bucket $pkg active",
-        ).joinToString("\n") { "$it 2>&1 && echo \"OK: $it\" || echo \"跳过: $it\"" }
+        )).joinToString("\n") { "$it >/dev/null 2>&1 && echo \"OK: $it\" || echo \"跳过: $it\"" }
     }
 }
