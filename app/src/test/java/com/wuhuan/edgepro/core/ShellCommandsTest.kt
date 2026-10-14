@@ -25,6 +25,9 @@ class ShellCommandsTest {
         val s = ShellCommands.launch(AppTarget("com.tencent.mm", 999))
         assertTrue(s.contains("am start-user 999"))
         assertTrue(s.contains("--user 999"))
+        assertTrue(s.contains("--dismiss-keyguard-if-insecure"))
+        assertTrue(s.contains("USER_LOCKED"))
+        assertTrue(s.contains("/data/system_ce/999"))
         assertFalse(s.contains("monkey"))
         assertTrue(ShellCommands.launch(AppTarget("com.tencent.mm", 0)).contains("monkey -p com.tencent.mm"))
     }

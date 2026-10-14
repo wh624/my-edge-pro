@@ -14,7 +14,9 @@ class DaemonAndCatchUpTest {
     fun `daemon script wakes app via explicit root broadcast including stopped packages`() {
         val s = DaemonScripts.daemon(pkg)
         assertTrue(s.contains("pidof \$PKG"))
-        assertTrue(s.contains("-n \$PKG/.sched.KeepAliveReceiver -f 0x20"))
+        assertTrue(s.contains("-n \$PKG/.sched.KeepAliveReceiver -f 0x10000020"))
+        assertTrue(s.contains("/data/user_de/0/\$PKG"))
+        assertFalse(s.contains("[ ! -d /data/data/"))
         assertTrue(s.contains("appops set $pkg 10008 allow"))
         assertTrue(s.contains("sys.boot_completed"))
     }
@@ -66,6 +68,15 @@ class DaemonAndCatchUpTest {
         val due = CatchUp.due(listOf(missed, ran, tooOld, future, disabled), expected, now, grace)
         assertEquals(listOf("a" to now - 60_000L), due.map { it.first.id to it.second })
         assertTrue(CatchUp.due(listOf(missed), expected, now, 0).isEmpty())
+    }
+
+    @Test
+    fun `launch tasks wait for the first unlock`() {
+        val launch = listOf(Step.Launch(listOf(AppTarget("com.a.b"))))
+        val shell = listOf(Step.Shell("echo hi"))
+        assertTrue(DirectBoot.deferLaunch(launch, userUnlocked = false))
+        assertFalse(DirectBoot.deferLaunch(launch, userUnlocked = true))
+        assertFalse(DirectBoot.deferLaunch(shell, userUnlocked = false))
     }
 
     @Test

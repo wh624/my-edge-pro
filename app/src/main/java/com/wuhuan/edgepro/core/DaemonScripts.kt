@@ -33,7 +33,7 @@ object DaemonScripts {
         require(ShellCommands.isValidPackage(pkg))
         return buildString {
             appendLine("#!/system/bin/sh")
-            appendLine("# Edge 定时 root 守护进程（由 App 自动生成，请勿手动修改）")
+            appendLine("# my-edge-pro root 守护进程（由 App 自动生成，请勿手动修改）")
             appendLine("PKG=$pkg")
             appendLine("PIDF=$PID_FILE")
             appendLine("P=\$(cat \"\$PIDF\" 2>/dev/null)")
@@ -44,11 +44,12 @@ object DaemonScripts {
             appendLine("until [ \"\$(getprop sys.boot_completed)\" = \"1\" ]; do sleep 5; done")
             permissionCommands(pkg).forEach { appendLine("$it >/dev/null 2>&1") }
             appendLine("while true; do")
-            appendLine("  if [ ! -d /data/data/\$PKG ]; then")
-            appendLine("    rm -f $BOOT_HOOK \"\$PIDF\"; rm -rf $DIR; exit 0")
+            appendLine("  # /data/data 在输入密码前不存在，不能用来判断卸载；/data/user_de 解锁前就在")
+            appendLine("  if [ ! -d /data/user_de/0/\$PKG ]; then")
+            appendLine("    if [ -d /data/user_de/0 ]; then rm -f $BOOT_HOOK \"\$PIDF\"; rm -rf $DIR; exit 0; fi")
             appendLine("  fi")
             appendLine("  if [ -z \"\$(pidof \$PKG)\" ]; then")
-            appendLine("    am broadcast -a ${keepAliveAction(pkg)} -n \$PKG/.sched.KeepAliveReceiver -f 0x20 >/dev/null 2>&1")
+            appendLine("    am broadcast --user 0 -a ${keepAliveAction(pkg)} -n \$PKG/.sched.KeepAliveReceiver -f 0x10000020 >/dev/null 2>&1")
             appendLine("  fi")
             appendLine("  sleep $INTERVAL_SEC")
             append("done")
@@ -103,6 +104,8 @@ object DaemonScripts {
             echo "== 电池优化白名单 =="; dumpsys deviceidle whitelist | grep $pkg || echo 不在白名单
             echo "== 待机分组 =="; am get-standby-bucket $pkg 2>&1
             echo "== 后台运行 =="; cmd appops get $pkg RUN_ANY_IN_BACKGROUND 2>&1
+            echo "== 用户是否已解锁 =="; if [ -d /data/system_ce/0 ]; then echo 已解锁; else echo 未解锁（重启后还没输入密码）; fi
+            echo "== 设备加密数据目录 =="; ls -d /data/user_de/0/$pkg 2>&1 || echo 不存在
             echo "== 本应用已注册的闹钟 =="; dumpsys alarm | grep -c "$pkg broadcastIntent"
             dumpsys alarm | grep -E "$pkg" | head -n 12
         """.trimIndent()

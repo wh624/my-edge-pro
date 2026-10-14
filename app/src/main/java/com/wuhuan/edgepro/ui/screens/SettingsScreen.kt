@@ -92,7 +92,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         append(if (d.running) "运行中 (pid ${d.pid})" else "未运行")
                         append(" · 开机自启")
                         append(if (d.bootHookInstalled) "已安装" else "未安装")
-                        append("\n以 root 身份常驻，App 被划掉/强停/重启后自动拉起，保证定时任务照常执行")
+                        append("\n以 root 身份常驻。重启后未解锁也会拉起；有锁屏密码时，启动应用会在输入密码后立即执行")
                     }
                 },
                 checked = daemonEnabled,

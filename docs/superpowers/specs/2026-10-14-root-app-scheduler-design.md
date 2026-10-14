@@ -39,7 +39,8 @@
 
 ## 后台常驻（App 不打开也能执行）
 MIUI/HyperOS 默认拒绝自启动：App 被划掉（强行停止会清空闹钟）、重启后未打开（开机广播被拦）、锁屏后被省电策略杀掉时，闹钟无法拉起进程。对策：
-- **Root 守护进程** `/data/adb/edgepro/daemon.sh`：uid 0 运行，不受针对应用 uid 的杀进程影响。每 30 秒 `pidof` 检查 App 进程，不在则 `am broadcast -n <pkg>/.sched.KeepAliveReceiver -f 0x20` 拉起；`KeepAliveReceiver` 不导出，仅 root 可发。App 数据目录消失（卸载）时自行清理退出。
+- **Root 守护进程** `/data/adb/edgepro/daemon.sh`：uid 0 运行，不受针对应用 uid 的杀进程影响。每 30 秒 `pidof` 检查 App 进程，不在则 `am broadcast --user 0 -n <pkg>/.sched.KeepAliveReceiver -f 0x10000020` 拉起；`KeepAliveReceiver` 不导出，仅 root 可发。卸载判定用解锁前就存在的 `/data/user_de/0/<pkg>`，不能用 `/data/data`（重启后未输入密码时它不存在，误判会把守护进程删掉）。
+- **Direct Boot**：`android:directBootAware` + `defaultToDeviceProtectedStorage`。任务、设置、预期触发时间放在设备加密存储，升级时从凭证加密目录迁移。监听 `LOCKED_BOOT_COMPLETED`，重启后未解锁也能注册闹钟并执行不含「启动应用」的步骤。含启动应用的任务在用户未解锁时排队，收到 `USER_UNLOCKED` 后立即执行。无密码的滑动锁屏在开机时即视为已解锁，启动时附带 `--dismiss-keyguard-if-insecure` 和点亮屏幕。
 - **开机自启** `/data/adb/service.d/edgepro.sh`（Magisk/KernelSU/APatch 通用），重启后无需打开 App。
 - **自启动授权**：守护进程启动时及「一键保活优化」执行 `appops set <pkg> 10008 allow`（MIUI 自启动）、`10021`（后台弹出界面）、`RUN_ANY_IN_BACKGROUND`、电池优化白名单。
 - **错过补执行**：`Scheduler` 在 SharedPreferences 记录每个任务的预期触发时间；`App.onCreate` 在重排前判定窗口内（默认 30 分钟，可设 0 关闭）错过且未执行的触发，延迟 5 秒补执行。执行服务按 `lastRunAt >= scheduledAt` 去重，避免闹钟与补执行重复。

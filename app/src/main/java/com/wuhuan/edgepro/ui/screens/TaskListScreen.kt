@@ -75,7 +75,7 @@ fun TaskListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edge 定时") },
+                title = { Text("my-edge-pro") },
                 actions = {
                     IconButton(onClick = onShell) { Icon(Icons.Default.Terminal, "Shell") }
                     IconButton(onClick = onLogs) { Icon(Icons.Default.History, "日志") }

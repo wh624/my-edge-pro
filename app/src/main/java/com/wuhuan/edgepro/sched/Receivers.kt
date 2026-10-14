@@ -25,12 +25,15 @@ class SystemEventReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in HANDLED_ACTIONS) return
         val app = context.applicationContext as App
-        app.scheduler.scheduleAll(app.tasks.items.value)
+        if (intent.action == Intent.ACTION_USER_UNLOCKED) app.onUserUnlocked()
+        else app.scheduleAndCatchUp()
     }
 
     private companion object {
         val HANDLED_ACTIONS = setOf(
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
             Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_USER_UNLOCKED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,

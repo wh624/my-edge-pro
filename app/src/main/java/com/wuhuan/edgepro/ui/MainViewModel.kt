@@ -9,6 +9,7 @@ import com.wuhuan.edgepro.core.Task
 import com.wuhuan.edgepro.core.TriggerCalculator
 import com.wuhuan.edgepro.root.RootShell
 import com.wuhuan.edgepro.sched.TaskRunnerService
+import com.wuhuan.edgepro.sched.TaskRuns
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val tasks = app.tasks.items
     val logs = app.logs.items
-    val running = TaskRunnerService.running
+    val running = TaskRuns.running
 
     private val _root = MutableStateFlow(RootShell.lastRootCheck)
     /** null 表示检测中。 */

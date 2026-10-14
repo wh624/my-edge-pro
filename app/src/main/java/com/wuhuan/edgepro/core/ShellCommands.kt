@@ -45,11 +45,24 @@ object ShellCommands {
         requireValid(target)
         val pkg = target.packageName
         val u = target.userId
+        val plain = "am start --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n \"\$comp\""
+        val dismiss = "am start --dismiss-keyguard-if-insecure --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n \"\$comp\""
         return buildString {
             if (u != 0) appendLine("am start-user $u >/dev/null 2>&1")
             appendLine("comp=\$(cmd package resolve-activity --brief --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $pkg 2>/dev/null | tail -n 1)")
             appendLine("case \"\$comp\" in")
-            appendLine("  */*) am start --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n \"\$comp\" ;;")
+            appendLine("  */*)")
+            appendLine("    input keyevent KEYCODE_WAKEUP >/dev/null 2>&1")
+            appendLine("    out=\$($dismiss 2>&1)")
+            appendLine("    case \"\$out\" in *Unknown*option*|*unknown*option*) out=\$($plain 2>&1) ;; esac")
+            appendLine("    printf '%s\\n' \"\$out\"")
+            appendLine("    case \"\$out\" in *Error*|*Exception*)")
+            appendLine("      if [ \"\$(getprop ro.crypto.type)\" = file ] && [ ! -d /data/system_ce/$u ]; then")
+            appendLine("        echo USER_LOCKED")
+            appendLine("        exit 3")
+            appendLine("      fi")
+            appendLine("      exit 2 ;;")
+            appendLine("    esac ;;")
             if (u == 0) {
                 appendLine("  *) monkey -p $pkg -c android.intent.category.LAUNCHER 1 ;;")
             } else {
