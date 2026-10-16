@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.CheckCircle
@@ -121,6 +122,7 @@ fun TaskListScreen(
                     onClick = { onEdit(task.id) },
                     onToggle = { vm.setEnabled(task, it) },
                     onRun = { vm.runNow(task) },
+                    onShortcut = { vm.createShortcut(task) },
                     onMove = { vm.move(task, it) },
                     onCopy = { vm.duplicate(task) },
                     onDelete = { deleting = task },
@@ -133,7 +135,7 @@ fun TaskListScreen(
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("删除任务") },
-            text = { Text("确定删除「${task.name.ifBlank { "未命名任务" }}」？") },
+            text = { Text("确定删除「${task.name.ifBlank { "未命名任务" }}」？已经加到桌面的快捷方式会失效。") },
             confirmButton = {
                 TextButton(onClick = { vm.delete(task); deleting = null }) { Text("删除") }
             },
@@ -171,6 +173,7 @@ private fun TaskCard(
     onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onRun: () -> Unit,
+    onShortcut: () -> Unit,
     onMove: (Int) -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
@@ -233,6 +236,13 @@ private fun TaskCard(
                         Text("立即执行")
                     }
                 }
+                TextButton(onClick = onShortcut) {
+                    Icon(Icons.Default.AddToHomeScreen, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("快捷方式")
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { onMove(-1) }, enabled = !isFirst) {
                     Icon(Icons.Default.KeyboardArrowUp, "上移", Modifier.size(20.dp))

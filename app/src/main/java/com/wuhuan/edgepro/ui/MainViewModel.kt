@@ -1,6 +1,7 @@
 package com.wuhuan.edgepro.ui
 
 import android.app.Application
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wuhuan.edgepro.App
@@ -76,6 +77,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun save(task: Task) {
         app.tasks.upsert(task)
         app.scheduler.schedule(task)
+        TaskShortcuts.syncPinned(app, task)
     }
 
     fun setEnabled(task: Task, enabled: Boolean) = save(task.copy(enabled = enabled))
@@ -83,6 +85,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun delete(task: Task) {
         app.scheduler.cancel(task.id)
         app.tasks.delete(task.id)
+        TaskShortcuts.disable(app, task.id)
+    }
+
+    fun createShortcut(task: Task) {
+        viewModelScope.launch {
+            if (_root.value == true) {
+                RootShell.exec("appops set ${app.packageName} 10017 allow", timeoutSec = 10)
+            }
+            Toast.makeText(app, TaskShortcuts.pin(app, task), Toast.LENGTH_LONG).show()
+        }
     }
 
     fun move(task: Task, delta: Int) = app.tasks.move(task.id, delta)

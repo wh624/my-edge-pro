@@ -15,11 +15,12 @@ object DaemonScripts {
     const val INTERVAL_SEC = 30
     private const val EOF = "__EDGEPRO_EOF__"
 
-    /** MIUI/HyperOS 私有 AppOps：10008 自启动，10021 后台弹出界面。其他 ROM 上会失败并被忽略。 */
+    /** MIUI/HyperOS 私有 AppOps：10008 自启动，10017 创建桌面快捷方式，10021 后台弹出界面。其他 ROM 上会失败并被忽略。 */
     fun permissionCommands(pkg: String): List<String> {
         require(ShellCommands.isValidPackage(pkg))
         return listOf(
             "appops set $pkg 10008 allow",
+            "appops set $pkg 10017 allow",
             "appops set $pkg 10021 allow",
             "cmd appops set $pkg RUN_IN_BACKGROUND allow",
             "cmd appops set $pkg RUN_ANY_IN_BACKGROUND allow",

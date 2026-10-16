@@ -18,6 +18,7 @@ class DaemonAndCatchUpTest {
         assertTrue(s.contains("/data/user_de/0/\$PKG"))
         assertFalse(s.contains("[ ! -d /data/data/"))
         assertTrue(s.contains("appops set $pkg 10008 allow"))
+        assertTrue(s.contains("appops set $pkg 10017 allow"))
         assertTrue(s.contains("sys.boot_completed"))
     }
 
