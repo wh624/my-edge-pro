@@ -59,6 +59,15 @@ class TaskStore(context: Context) : JsonListStore<Task>(File(context.filesDir, "
 
     fun delete(id: String) = update { list -> list.filterNot { it.id == id } }
 
+    fun move(id: String, delta: Int) = update { list ->
+        val index = list.indexOfFirst { it.id == id }
+        val target = index + delta
+        if (index < 0 || target !in list.indices) list
+        else list.toMutableList().apply {
+            this[index] = this[target].also { this[target] = this[index] }
+        }
+    }
+
     fun markRun(id: String, time: Long, success: Boolean) = update { list ->
         list.map { if (it.id == id) it.copy(lastRunAt = time, lastSuccess = success) else it }
     }

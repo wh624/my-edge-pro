@@ -85,6 +85,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         app.tasks.delete(task.id)
     }
 
+    fun move(task: Task, delta: Int) = app.tasks.move(task.id, delta)
+
     fun duplicate(task: Task) = save(
         Task(name = task.name + " 副本", enabled = false, trigger = task.trigger, steps = task.steps)
     )

@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -108,15 +110,18 @@ fun TaskListScreen(
                     }
                 }
             }
-            items(tasks, key = { it.id }) { task ->
+            itemsIndexed(tasks, key = { _, task -> task.id }) { index, task ->
                 TaskCard(
                     task = task,
                     nextRun = vm.nextRun(task, now),
                     now = now,
                     isRunning = running == task.id,
+                    isFirst = index == 0,
+                    isLast = index == tasks.lastIndex,
                     onClick = { onEdit(task.id) },
                     onToggle = { vm.setEnabled(task, it) },
                     onRun = { vm.runNow(task) },
+                    onMove = { vm.move(task, it) },
                     onCopy = { vm.duplicate(task) },
                     onDelete = { deleting = task },
                 )
@@ -161,9 +166,12 @@ private fun TaskCard(
     nextRun: Long?,
     now: Long,
     isRunning: Boolean,
+    isFirst: Boolean,
+    isLast: Boolean,
     onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onRun: () -> Unit,
+    onMove: (Int) -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -226,7 +234,13 @@ private fun TaskCard(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, "复制", Modifier.size(20.dp)) }
+                IconButton(onClick = { onMove(-1) }, enabled = !isFirst) {
+                    Icon(Icons.Default.KeyboardArrowUp, "上移", Modifier.size(20.dp))
+                }
+                IconButton(onClick = { onMove(1) }, enabled = !isLast) {
+                    Icon(Icons.Default.KeyboardArrowDown, "下移", Modifier.size(20.dp))
+                }
+                IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, "复制任务", Modifier.size(20.dp)) }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除", Modifier.size(20.dp)) }
             }
         }

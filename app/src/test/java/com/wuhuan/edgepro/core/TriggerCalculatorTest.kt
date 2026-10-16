@@ -35,6 +35,15 @@ class TriggerCalculatorTest {
     }
 
     @Test
+    fun `multiple cron lines fire at the earliest next time`() {
+        val t = Trigger.Cron("0 0 8 * * *\n0 30 12 * * *")
+        assertEquals(at("2026-10-14T12:30:00"), TriggerCalculator.next(t, at("2026-10-14T09:00:00")))
+        assertEquals(at("2026-10-15T08:00:00"), TriggerCalculator.next(t, at("2026-10-14T12:30:00")))
+        assertNull(TriggerCalculator.validate(t))
+        assertNotNull(TriggerCalculator.validate(Trigger.Cron("0 0 8 * * *\nnot cron")))
+    }
+
+    @Test
     fun `nextTimes returns consecutive fires`() {
         val list = TriggerCalculator.nextTimes(Trigger.Cron("0 0 8 * * *"), at("2026-10-14T09:00:00"), 3)
         assertEquals(listOf(at("2026-10-15T08:00:00"), at("2026-10-16T08:00:00"), at("2026-10-17T08:00:00")), list)

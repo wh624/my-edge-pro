@@ -20,6 +20,10 @@ object DailyTimes {
 
     fun parseOrNull(text: String): List<LocalTime>? = runCatching { parse(text) }.getOrNull()
 
+    /** 按用户输入的顺序拆开，不校验、不去重，供编辑界面逐条展示。 */
+    fun rawEntries(text: String): List<String> =
+        text.trim().split(separators).filter { it.isNotEmpty() }
+
     private fun parseToken(token: String): LocalTime {
         val parts: List<String> = if (token.contains(':') || token.contains('：')) {
             token.split(':', '：')

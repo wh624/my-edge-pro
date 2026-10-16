@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -46,6 +47,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
@@ -161,6 +163,11 @@ fun TaskEditScreen(vm: MainViewModel, taskId: String, onBack: () -> Unit) {
                             draft = draft.copy(steps = list)
                         }
                     },
+                    onCopy = {
+                        val list = draft.steps.toMutableList()
+                        list.add(index + 1, step)
+                        draft = draft.copy(steps = list)
+                    },
                     onDelete = { draft = draft.copy(steps = draft.steps.filterIndexed { i, _ -> i != index }) },
                     onPick = { whitelist -> picking = PickTarget(index, whitelist) },
                 )
@@ -218,15 +225,14 @@ private fun TriggerEditor(trigger: Trigger, error: String?, onChange: (Trigger) 
     }
     when (trigger) {
         is Trigger.Daily -> {
-            OutlinedTextField(
-                value = trigger.times,
-                onValueChange = { onChange(trigger.copy(times = it)) },
-                label = { Text("时间（HHmmss，多个用逗号分隔）") },
-                placeholder = { Text("065000,123000") },
-                isError = error != null,
-                supportingText = { Text(error ?: "支持 065000 / 0650 / 6:50:00 等格式") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+            MultiValueList(
+                initial = DailyTimes.rawEntries(trigger.times).ifEmpty { listOf("065000") },
+                label = { "时间 ${it + 1}" },
+                placeholder = "065000",
+                addLabel = "添加时间",
+                supporting = "格式 065000、0650 或 06:50:00，到点都执行下面的步骤",
+                onInvalid = { DailyTimes.parseOrNull(it) == null },
+                onChange = { onChange(trigger.copy(times = it.joinToString(","))) },
             )
             Text("重复（不选为每天）", style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -249,24 +255,25 @@ private fun TriggerEditor(trigger: Trigger, error: String?, onChange: (Trigger) 
             }
         }
         is Trigger.Cron -> {
-            OutlinedTextField(
-                value = trigger.expression,
-                onValueChange = { onChange(trigger.copy(expression = it)) },
-                label = { Text("Cron（秒 分 时 日 月 周，或 分 时 日 月 周）") },
-                isError = error != null,
-                supportingText = { Text(error ?: "支持 * , - / 以及 MON-SUN、JAN-DEC") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(
-                    "0 50 6 * * *" to "每天 06:50",
-                    "0 0 8 * * MON-FRI" to "工作日 8 点",
-                    "0 */30 9-18 * * *" to "9-18 点每半小时",
-                    "0 0 0 1 * *" to "每月 1 号",
-                ).forEach { (expr, desc) ->
-                    AssistChip(onClick = { onChange(Trigger.Cron(expr)) }, label = { Text(desc) })
+            MultiValueList(
+                initial = TriggerCalculator.cronLines(trigger.expression).ifEmpty { listOf("0 50 6 * * *") },
+                label = { "Cron ${it + 1}" },
+                placeholder = "0 50 6 * * *",
+                addLabel = "添加一条 Cron",
+                supporting = "秒 分 时 日 月 周，或 分 时 日 月 周。支持 * , - / 以及 MON-SUN",
+                monospace = true,
+                onInvalid = { CronExpression.parseOrNull(it) == null },
+                onChange = { onChange(trigger.copy(expression = it.joinToString("\n"))) },
+            ) { add ->
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        "0 50 6 * * *" to "每天 06:50",
+                        "0 0 8 * * MON-FRI" to "工作日 8 点",
+                        "0 */30 9-18 * * *" to "9-18 点每半小时",
+                        "0 0 0 1 * *" to "每月 1 号",
+                    ).forEach { (expr, desc) ->
+                        AssistChip(onClick = { add(expr) }, label = { Text(desc) })
+                    }
                 }
             }
         }
@@ -285,11 +292,79 @@ private fun TriggerEditor(trigger: Trigger, error: String?, onChange: (Trigger) 
     }
 }
 
+@Composable
+private fun MultiValueList(
+    initial: List<String>,
+    label: (Int) -> String,
+    placeholder: String,
+    addLabel: String,
+    supporting: String,
+    onInvalid: (String) -> Boolean,
+    onChange: (List<String>) -> Unit,
+    monospace: Boolean = false,
+    extras: @Composable ((String) -> Unit) -> Unit = {},
+) {
+    val rows = remember { mutableStateListOf<String>().apply { addAll(initial) } }
+    fun commit() = onChange(rows.map { it.trim() }.filter { it.isNotEmpty() })
+    fun add(value: String) {
+        if (rows.any { it.trim() == value }) return
+        if (rows.size == 1 && rows[0].isBlank()) rows[0] = value else rows.add(value)
+        commit()
+    }
+    fun move(index: Int, delta: Int) {
+        val target = index + delta
+        if (target !in rows.indices) return
+        val current = rows[index]
+        rows[index] = rows[target]
+        rows[target] = current
+        commit()
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEachIndexed { index, value ->
+            val invalid = value.isNotBlank() && onInvalid(value.trim())
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { rows[index] = it; commit() },
+                    label = { Text(label(index)) },
+                    placeholder = { Text(placeholder) },
+                    isError = invalid,
+                    supportingText = { Text(if (invalid) "无法识别" else if (index == rows.lastIndex) supporting else "") },
+                    singleLine = true,
+                    textStyle = if (monospace) {
+                        MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)
+                    } else {
+                        MaterialTheme.typography.bodyLarge
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                if (rows.size > 1) {
+                    IconButton(onClick = { move(index, -1) }, enabled = index > 0) {
+                        Icon(Icons.Default.KeyboardArrowUp, "上移", Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { move(index, 1) }, enabled = index < rows.lastIndex) {
+                        Icon(Icons.Default.KeyboardArrowDown, "下移", Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { rows.removeAt(index); commit() }) {
+                        Icon(Icons.Default.Delete, "删除这条定时")
+                    }
+                }
+            }
+        }
+        OutlinedButton(onClick = { rows.add("") }) {
+            Icon(Icons.Default.Add, null)
+            Spacer(Modifier.width(6.dp))
+            Text(addLabel)
+        }
+        extras(::add)
+    }
+}
+
 private fun dailyToCron(daily: Trigger.Daily): String {
-    val t = DailyTimes.parseOrNull(daily.times)?.firstOrNull() ?: return "0 50 6 * * *"
+    val times = DailyTimes.parseOrNull(daily.times)?.ifEmpty { null } ?: listOf(java.time.LocalTime.of(6, 50))
     val dow = if (daily.weekdays.isEmpty() || daily.weekdays.size == 7) "*"
     else daily.weekdays.sorted().joinToString(",") { (it % 7).toString() }
-    return "${t.second} ${t.minute} ${t.hour} * * $dow".also { check(CronExpression.parseOrNull(it) != null) }
+    return times.joinToString("\n") { "${it.second} ${it.minute} ${it.hour} * * $dow" }
 }
 
 private fun stepIcon(step: Step): ImageVector = when (step) {
@@ -308,6 +383,7 @@ private fun StepCard(
     isLast: Boolean,
     onChange: (Step) -> Unit,
     onMove: (Int) -> Unit,
+    onCopy: () -> Unit,
     onDelete: () -> Unit,
     onPick: (whitelist: Boolean) -> Unit,
 ) {
@@ -319,6 +395,7 @@ private fun StepCard(
                 Text("${index + 1}. ${step.title()}", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 IconButton(onClick = { onMove(-1) }, enabled = !isFirst) { Icon(Icons.Default.KeyboardArrowUp, "上移") }
                 IconButton(onClick = { onMove(1) }, enabled = !isLast) { Icon(Icons.Default.KeyboardArrowDown, "下移") }
+                IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, "复制步骤") }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除") }
             }
             Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
