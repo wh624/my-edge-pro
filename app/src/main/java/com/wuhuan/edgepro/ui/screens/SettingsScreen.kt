@@ -56,7 +56,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
     var catchUp by remember { mutableIntStateOf(app.settings.catchUpMinutes) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { if (root == true) vm.refreshDaemon() }
-    var alarmClock by remember { mutableStateOf(app.settings.alarmClockMode) }
     var notify by remember { mutableStateOf(app.settings.notifyOnFinish) }
     var dialogText by remember { mutableStateOf<String?>(null) }
     val clipboard = context.getSystemService(ClipboardManager::class.java)
@@ -122,16 +121,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
 
             Group("调度")
-            SwitchItem(
-                title = "闹钟模式",
-                subtitle = "最准时、不受省电模式影响，但状态栏会显示闹钟图标；关闭则使用普通精确闹钟",
-                checked = alarmClock,
-            ) {
-                alarmClock = it
-                app.settings.alarmClockMode = it
-                vm.rescheduleAll()
-            }
-            SwitchItem("执行完成后通知", "每次任务执行完弹出结果通知", notify) {
+            SwitchItem("执行完成后通知", "只在通知栏留下结果，不响铃、不点亮屏幕", notify) {
                 notify = it
                 app.settings.notifyOnFinish = it
             }

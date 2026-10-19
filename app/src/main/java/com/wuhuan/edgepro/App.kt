@@ -44,7 +44,7 @@ class App : Application() {
         tasks = TaskStore(this)
         logs = LogStore(this)
         settings = Settings(this)
-        scheduler = Scheduler(this, settings)
+        scheduler = Scheduler(this)
         apps = AppRepository(this)
         executor = TaskExecutor(this)
         daemon = DaemonManager(packageName)
@@ -92,14 +92,14 @@ class App : Application() {
         nm.createNotificationChannels(
             listOf(
                 NotificationChannel(CHANNEL_RUNNING, "任务执行中", NotificationManager.IMPORTANCE_LOW),
-                NotificationChannel(CHANNEL_RESULT, "任务执行结果", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_RESULT, "任务执行结果", NotificationManager.IMPORTANCE_LOW),
             )
         )
     }
 
     companion object {
         const val CHANNEL_RUNNING = "running"
-        const val CHANNEL_RESULT = "result"
+        const val CHANNEL_RESULT = "result_silent"
 
         lateinit var instance: App
             private set

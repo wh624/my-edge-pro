@@ -39,32 +39,38 @@ object ShellCommands {
 
     /**
      * 以桌面点击的方式启动应用：先解析 LAUNCHER Activity，再 `am start --user N`。
-     * 主空间解析失败时退回 monkey。
+     * 主空间解析失败时退回 monkey。不点亮屏幕；若执行前屏幕是灭的，启动后再熄灭，避免目标应用自己把屏幕唤醒。
      */
     fun launch(target: AppTarget): String {
         requireValid(target)
         val pkg = target.packageName
         val u = target.userId
-        val plain = "am start --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n \"\$comp\""
-        val dismiss = "am start --dismiss-keyguard-if-insecure --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n \"\$comp\""
+        val start = "am start --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10000000 -n \"\$comp\""
         return buildString {
             if (u != 0) appendLine("am start-user $u >/dev/null 2>&1")
+            appendLine("asleep=0")
+            appendLine("case \"\$(dumpsys power 2>/dev/null | grep -m1 'mWakefulness=')\" in")
+            appendLine("  *Asleep*|*Dozing*|*Dreaming*) asleep=1 ;;")
+            appendLine("esac")
             appendLine("comp=\$(cmd package resolve-activity --brief --user $u -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $pkg 2>/dev/null | tail -n 1)")
             appendLine("case \"\$comp\" in")
             appendLine("  */*)")
-            appendLine("    input keyevent KEYCODE_WAKEUP >/dev/null 2>&1")
-            appendLine("    out=\$($dismiss 2>&1)")
-            appendLine("    case \"\$out\" in *Unknown*option*|*unknown*option*) out=\$($plain 2>&1) ;; esac")
+            appendLine("    out=\$($start 2>&1)")
             appendLine("    printf '%s\\n' \"\$out\"")
             appendLine("    case \"\$out\" in *Error*|*Exception*)")
+            appendLine("      if [ \"\$asleep\" = 1 ]; then input keyevent KEYCODE_SLEEP >/dev/null 2>&1; fi")
             appendLine("      if [ \"\$(getprop ro.crypto.type)\" = file ] && [ ! -d /data/system_ce/$u ]; then")
             appendLine("        echo USER_LOCKED")
             appendLine("        exit 3")
             appendLine("      fi")
             appendLine("      exit 2 ;;")
-            appendLine("    esac ;;")
+            appendLine("    esac")
+            appendLine("    if [ \"\$asleep\" = 1 ]; then sleep 1; input keyevent KEYCODE_SLEEP >/dev/null 2>&1; fi")
+            appendLine("    ;;")
             if (u == 0) {
-                appendLine("  *) monkey -p $pkg -c android.intent.category.LAUNCHER 1 ;;")
+                appendLine("  *) monkey -p $pkg -c android.intent.category.LAUNCHER 1")
+                appendLine("     if [ \"\$asleep\" = 1 ]; then sleep 1; input keyevent KEYCODE_SLEEP >/dev/null 2>&1; fi")
+                appendLine("     ;;")
             } else {
                 appendLine("  *) echo \"未找到 $pkg 在用户 $u 中的启动入口\" >&2; exit 2 ;;")
             }

@@ -9,10 +9,8 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import com.wuhuan.edgepro.core.Task
 import com.wuhuan.edgepro.core.TriggerCalculator
-import com.wuhuan.edgepro.data.Settings
-import com.wuhuan.edgepro.ui.MainActivity
 
-class Scheduler(private val context: Context, private val settings: Settings) {
+class Scheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -36,13 +34,10 @@ class Scheduler(private val context: Context, private val settings: Settings) {
         if (!task.enabled || task.steps.isEmpty()) return null
         val next = TriggerCalculator.nextMillis(task.trigger, afterMillis) ?: return null
         val operation = alarmIntent(task.id, next)
+        // RTC_WAKEUP 只唤醒 CPU，让熄屏时也能准时执行。不用 setAlarmClock：那是闹钟语义，
+        // MIUI 上会点亮屏幕并在状态栏挂闹钟图标。
         try {
-            if (settings.alarmClockMode && canScheduleExact()) {
-                val show = PendingIntent.getActivity(
-                    context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
-                )
-                alarmManager.setAlarmClock(AlarmManager.AlarmClockInfo(next, show), operation)
-            } else if (canScheduleExact()) {
+            if (canScheduleExact()) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, operation)
             } else {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, operation)
