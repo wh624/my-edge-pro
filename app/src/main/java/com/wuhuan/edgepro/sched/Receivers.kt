@@ -9,7 +9,9 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_RUN) return
         val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return
-        val triggerAt = intent.getLongExtra(EXTRA_TRIGGER_AT, System.currentTimeMillis())
+        val triggerAt = intent.getLongExtra(EXTRA_TRIGGER_AT, -1L).takeIf { it > 0 }
+            ?: intent.data?.lastPathSegment?.toLongOrNull()
+            ?: System.currentTimeMillis()
         TaskRunnerService.startOrLog(context, taskId, scheduledAt = triggerAt, source = "定时")
     }
 

@@ -40,9 +40,10 @@ object TaskRuns {
     suspend fun execute(app: App, taskId: String, scheduledAt: Long?, source: String) = lock.withLock {
         app.tasks.reload()
         val task = app.tasks.get(taskId) ?: return@withLock
-        if (scheduledAt != null && CatchUp.alreadyRan(task, scheduledAt)) return@withLock
         if (scheduledAt != null) {
+            // 先把这次之后的闹钟挂上。重复投递被去重时也要补，否则这次被跳过后下一批就断了。
             app.scheduler.schedule(task, afterMillis = maxOf(System.currentTimeMillis(), scheduledAt))
+            if (CatchUp.alreadyRan(task, scheduledAt)) return@withLock
         }
         val unlocked = app.getSystemService(UserManager::class.java).isUserUnlocked
         if (DirectBoot.deferLaunch(task.steps, unlocked)) {
