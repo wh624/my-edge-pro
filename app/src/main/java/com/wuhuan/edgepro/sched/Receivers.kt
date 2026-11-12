@@ -3,6 +3,9 @@ package com.wuhuan.edgepro.sched
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import com.wuhuan.edgepro.App
 
 class AlarmReceiver : BroadcastReceiver() {
@@ -12,7 +15,23 @@ class AlarmReceiver : BroadcastReceiver() {
         val triggerAt = intent.getLongExtra(EXTRA_TRIGGER_AT, -1L).takeIf { it > 0 }
             ?: intent.data?.lastPathSegment?.toLongOrNull()
             ?: System.currentTimeMillis()
-        TaskRunnerService.startOrLog(context, taskId, scheduledAt = triggerAt, source = "定时")
+        val appContext = context.applicationContext
+        val pending = goAsync()
+        val wakeLock = runCatching {
+            appContext.getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EdgePro:alarm")
+                .apply { acquire(60_000L) }
+        }.getOrNull()
+        try {
+            TaskRunnerService.startOrLog(appContext, taskId, triggerAt, "定时")
+        } finally {
+            pending.finish()
+            if (wakeLock != null) {
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (wakeLock.isHeld) wakeLock.release()
+                }, 15_000)
+            }
+        }
     }
 
     companion object {

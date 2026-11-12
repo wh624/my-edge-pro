@@ -110,7 +110,7 @@ class TaskRunnerService : Service() {
         fun startOrLog(context: Context, taskId: String, scheduledAt: Long?, source: String) {
             try {
                 start(context, taskId, scheduledAt, source)
-            } catch (_: IllegalStateException) {
+            } catch (_: Exception) {
                 TaskRuns.enqueue(context.applicationContext as App, taskId, scheduledAt, source)
             }
         }

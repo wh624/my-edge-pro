@@ -34,7 +34,16 @@ object TaskRuns {
     val running: StateFlow<String?> = _running.asStateFlow()
 
     fun enqueue(app: App, taskId: String, scheduledAt: Long?, source: String) {
-        scope.launch { execute(app, taskId, scheduledAt, source) }
+        val wakeLock = app.getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EdgePro:enqueue")
+            .apply { acquire(30 * 60 * 1000L) }
+        scope.launch {
+            try {
+                execute(app, taskId, scheduledAt, source)
+            } finally {
+                if (wakeLock.isHeld) wakeLock.release()
+            }
+        }
     }
 
     suspend fun execute(app: App, taskId: String, scheduledAt: Long?, source: String) = lock.withLock {
